@@ -28,14 +28,47 @@ const SOAPBindingV1 = "urn:oasis:names:tc:SAML:1.0:bindings:SOAP-binding"
 //
 // See http://docs.oasis-open.org/security/saml/v2.0/saml-metadata-2.0-os.pdf §2.3.1
 type EntitiesDescriptor struct {
-	XMLName             xml.Name       `xml:"urn:oasis:names:tc:SAML:2.0:metadata EntitiesDescriptor"`
-	ID                  *string        `xml:",attr,omitempty"`
-	ValidUntil          *time.Time     `xml:"validUntil,attr,omitempty"`
-	CacheDuration       *time.Duration `xml:"cacheDuration,attr,omitempty"`
-	Name                *string        `xml:",attr,omitempty"`
+	XMLName             xml.Name      `xml:"urn:oasis:names:tc:SAML:2.0:metadata EntitiesDescriptor"`
+	ID                  *string       `xml:",attr,omitempty"`
+	ValidUntil          time.Time     `xml:"validUntil,attr,omitempty"`
+	CacheDuration       time.Duration `xml:"cacheDuration,attr,omitempty"`
+	Name                *string       `xml:",attr,omitempty"`
 	Signature           *etree.Element
 	EntitiesDescriptors []EntitiesDescriptor `xml:"urn:oasis:names:tc:SAML:2.0:metadata EntitiesDescriptor"`
 	EntityDescriptors   []EntityDescriptor   `xml:"urn:oasis:names:tc:SAML:2.0:metadata EntityDescriptor"`
+}
+
+// MarshalXML implements xml.Marshaler
+func (m EntitiesDescriptor) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+	type Alias EntitiesDescriptor
+	aux := &struct {
+		ValidUntil    RelaxedTime `xml:"validUntil,attr,omitempty"`
+		CacheDuration Duration    `xml:"cacheDuration,attr,omitempty"`
+		*Alias
+	}{
+		ValidUntil:    RelaxedTime(m.ValidUntil),
+		CacheDuration: Duration(m.CacheDuration),
+		Alias:         (*Alias)(&m),
+	}
+	return e.Encode(aux)
+}
+
+// UnmarshalXML implements xml.Unmarshaler
+func (m *EntitiesDescriptor) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	type Alias EntitiesDescriptor
+	aux := &struct {
+		ValidUntil    RelaxedTime `xml:"validUntil,attr,omitempty"`
+		CacheDuration Duration    `xml:"cacheDuration,attr,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(m),
+	}
+	if err := d.DecodeElement(aux, &start); err != nil {
+		return err
+	}
+	m.ValidUntil = time.Time(aux.ValidUntil)
+	m.CacheDuration = time.Duration(aux.CacheDuration)
+	return nil
 }
 
 // Metadata as been renamed to EntityDescriptor

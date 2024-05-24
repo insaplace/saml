@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/crewjam/saml/samlsp"
+	"github.com/insaplace/saml/samlsp"
 )
 
 var samlMiddleware *samlsp.Middleware

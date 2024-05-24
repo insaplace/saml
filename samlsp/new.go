@@ -6,10 +6,11 @@ import (
 	"crypto/x509"
 	"net/http"
 	"net/url"
+	"slices"
 
 	dsig "github.com/russellhaering/goxmldsig"
 
-	"github.com/crewjam/saml"
+	"github.com/insaplace/saml"
 )
 
 // Options represents the parameters for creating a new middleware
@@ -151,4 +152,73 @@ func New(opts Options) (*Middleware, error) {
 	}
 
 	return m, nil
+}
+
+func NewServiceMultipleProvider(entities *saml.EntitiesDescriptor, opts Options, targetedProviders []string) (*saml.ServiceMultipleProvider, error) {
+	providers := make(map[string]saml.ServiceProvider)
+
+	metadataURL := opts.URL.ResolveReference(&url.URL{Path: "saml/metadata"})
+	acsURL := opts.URL.ResolveReference(&url.URL{Path: "saml/acs"})
+	sloURL := opts.URL.ResolveReference(&url.URL{Path: "saml/slo"})
+
+	var forceAuthn *bool
+	if opts.ForceAuthn {
+		forceAuthn = &opts.ForceAuthn
+	}
+	signatureMethod := dsig.RSASHA1SignatureMethod
+	if !opts.SignRequest {
+		signatureMethod = ""
+	}
+
+	if opts.DefaultRedirectURI == "" {
+		opts.DefaultRedirectURI = "/"
+	}
+
+	if len(opts.LogoutBindings) == 0 {
+		opts.LogoutBindings = []string{saml.HTTPPostBinding}
+	}
+
+	for _, entity := range entities.EntityDescriptors {
+		entity := entity
+		if slices.Contains(targetedProviders, entity.EntityID) {
+			providers[entity.EntityID] = DefaultServiceProvider(Options{
+				EntityID:              opts.EntityID,
+				Key:                   opts.Key,
+				Certificate:           opts.Certificate,
+				HTTPClient:            opts.HTTPClient,
+				Intermediates:         opts.Intermediates,
+				URL:                   opts.URL,
+				SignRequest:           opts.SignRequest,
+				UseArtifactResponse:   opts.UseArtifactResponse,
+				CookieSameSite:        opts.CookieSameSite,
+				CookieName:            opts.CookieName,
+				RelayStateFunc:        opts.RelayStateFunc,
+				ForceAuthn:            opts.ForceAuthn,
+				RequestedAuthnContext: opts.RequestedAuthnContext,
+				AllowIDPInitiated:     opts.AllowIDPInitiated,
+				DefaultRedirectURI:    opts.DefaultRedirectURI,
+				LogoutBindings:        opts.LogoutBindings,
+				IDPMetadata:           &entity,
+			})
+		}
+	}
+
+	return &saml.ServiceMultipleProvider{
+		Providers:             providers,
+		EntityID:              opts.EntityID,
+		Key:                   opts.Key,
+		Certificate:           opts.Certificate,
+		HTTPClient:            opts.HTTPClient,
+		Intermediates:         opts.Intermediates,
+		MetadataURL:           *metadataURL,
+		AcsURL:                *acsURL,
+		SloURL:                *sloURL,
+		IDPMetadata:           entities,
+		ForceAuthn:            forceAuthn,
+		RequestedAuthnContext: opts.RequestedAuthnContext,
+		SignatureMethod:       signatureMethod,
+		AllowIDPInitiated:     opts.AllowIDPInitiated,
+		DefaultRedirectURI:    opts.DefaultRedirectURI,
+		LogoutBindings:        opts.LogoutBindings,
+	}, nil
 }

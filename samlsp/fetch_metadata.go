@@ -12,9 +12,9 @@ import (
 	"github.com/crewjam/httperr"
 	xrv "github.com/mattermost/xml-roundtrip-validator"
 
-	"github.com/crewjam/saml/logger"
+	"github.com/insaplace/saml/logger"
 
-	"github.com/crewjam/saml"
+	"github.com/insaplace/saml"
 )
 
 // ParseMetadata parses arbitrary SAML IDP metadata.
@@ -51,8 +51,36 @@ func ParseMetadata(data []byte) (*saml.EntityDescriptor, error) {
 	return entity, nil
 }
 
+func ParseEntitiesMetadata(data []byte) (*saml.EntitiesDescriptor, error) {
+	entities := &saml.EntitiesDescriptor{}
+	if err := xrv.Validate(bytes.NewBuffer(data)); err != nil {
+		return nil, err
+	}
+
+	err := xml.Unmarshal(data, entities)
+	// this comparison is ugly, but it is how the error is generated in encoding/xml
+	if err != nil && err.Error() == "expected element type <EntitiesDescriptor> but have <EntityDescriptor>" {
+		entity := &saml.EntityDescriptor{}
+		if err := xml.Unmarshal(data, entity); err != nil {
+			return nil, err
+		}
+
+		entities.EntityDescriptors = []saml.EntityDescriptor{*entity}
+		return entities, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return entities, nil
+}
+
 // FetchMetadata returns metadata from an IDP metadata URL.
+// Deprecated: use FetchEntityMetatada or FetchEntitiesMetadata instead.
 func FetchMetadata(ctx context.Context, httpClient *http.Client, metadataURL url.URL) (*saml.EntityDescriptor, error) {
+	return fetchMetadata(ctx, httpClient, metadataURL, ParseMetadata)
+}
+
+func fetchMetadata[R *saml.EntityDescriptor | *saml.EntitiesDescriptor](ctx context.Context, httpClient *http.Client, metadataURL url.URL, f func(data []byte) (R, error)) (R, error) {
 	req, err := http.NewRequest("GET", metadataURL.String(), nil)
 	if err != nil {
 		return nil, err
@@ -77,5 +105,13 @@ func FetchMetadata(ctx context.Context, httpClient *http.Client, metadataURL url
 		return nil, err
 	}
 
-	return ParseMetadata(data)
+	return f(data)
+}
+
+func FetchEntityMetatada(ctx context.Context, httpClient *http.Client, metadataURL url.URL) (*saml.EntityDescriptor, error) {
+	return fetchMetadata(ctx, httpClient, metadataURL, ParseMetadata)
+}
+
+func FetchEntitiesMetadata(ctx context.Context, httpClient *http.Client, metadataURL url.URL) (*saml.EntitiesDescriptor, error) {
+	return fetchMetadata(ctx, httpClient, metadataURL, ParseEntitiesMetadata)
 }
