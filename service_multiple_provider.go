@@ -1,7 +1,7 @@
 package saml
 
 import (
-	"crypto/rsa"
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
@@ -18,7 +18,7 @@ type ServiceMultipleProvider struct {
 	Providers map[string]ServiceProvider
 
 	// Key is the RSA private key we use to sign requests.
-	Key *rsa.PrivateKey
+	Key crypto.Signer
 
 	// Certificate is the RSA public part of Key.
 	Certificate   *x509.Certificate
@@ -88,7 +88,6 @@ func (smp *ServiceMultipleProvider) GetServiceProvider(entityID string) (Service
 
 func (smp *ServiceMultipleProvider) MakeWayfRedirectionRequest(relayState, returnUrl string) (*url.URL, error) {
 	u, err := url.Parse(returnUrl)
-
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +103,6 @@ func (smp *ServiceMultipleProvider) MakeWayfRedirectionRequest(relayState, retur
 	}
 
 	wu, err := url.Parse(*wayfUrl)
-
 	if err != nil {
 		return nil, err
 	}

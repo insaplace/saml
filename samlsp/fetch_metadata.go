@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
-	"github.com/crewjam/httperr"
 	xrv "github.com/mattermost/xml-roundtrip-validator"
 
 	"github.com/insaplace/saml/logger"
@@ -97,7 +97,7 @@ func fetchMetadata[R *saml.EntityDescriptor | *saml.EntitiesDescriptor](ctx cont
 		}
 	}()
 	if resp.StatusCode >= 400 {
-		return nil, httperr.Response(*resp)
+		return nil, fmt.Errorf("failed to fetch metadata: unexpected status code %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
